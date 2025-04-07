@@ -2,18 +2,30 @@ import requests
 import time
 from datetime import datetime
 
+print("🚀 بدء تشغيل السكربت send.py")
+
 # === Server settings ===
 url = "https://api.sms-gate.app/3rdparty/v1/message"
-username = "XRNXXE"
-password = "-vxuufekhppp1x"
+username = "OZRO7V"
+password = "0itezfj2l0ahqt"
 
 # === Load phone numbers ===
-with open("numbers.txt", "r", encoding="utf-8") as f:
-    phone_numbers = [line.strip() for line in f if line.strip()]
+try:
+    with open("numbers.txt", "r", encoding="utf-8") as f:
+        phone_numbers = [line.strip() for line in f if line.strip()]
+    print(f"📞 تم تحميل {len(phone_numbers)} رقم.")
+except Exception as e:
+    print(f"❌ خطأ أثناء تحميل الأرقام: {e}")
+    phone_numbers = []
 
 # === Load messages ===
-with open("messages.txt", "r", encoding="utf-8") as f:
-    messages = [line.strip() for line in f if line.strip()]
+try:
+    with open("messages.txt", "r", encoding="utf-8") as f:
+        messages = [line.strip() for line in f if line.strip()]
+    print(f"💬 تم تحميل {len(messages)} رسالة.")
+except Exception as e:
+    print(f"❌ خطأ أثناء تحميل الرسائل: {e}")
+    messages = []
 
 # === Track successfully sent numbers ===
 sent_numbers = []
@@ -44,61 +56,59 @@ def send_single_message(phone_number, message_text, index):
                 headers={"Content-Type": "application/json"}
             )
 
-            # Case 1: HTTP 202 → success
             if response.status_code == 202:
-                print(f"✅ Message #{index+1} sent (202 Accepted) to: {phone_number}")
+                print(f"✅ الرسالة رقم {index+1} تم إرسالها إلى: {phone_number} (202 Accepted)")
                 sent_numbers.append(phone_number)
                 log_sent_number(phone_number)
                 return True
 
-            # Case 2: HTTP 200 + JSON "state": "Pending"
             elif response.status_code == 200:
                 try:
                     res_json = response.json()
                     if res_json.get("state") == "Pending":
-                        print(f"✅ Message #{index+1} sent (state: Pending) to: {phone_number}")
+                        print(f"✅ الرسالة رقم {index+1} في حالة Pending إلى: {phone_number}")
                         sent_numbers.append(phone_number)
                         log_sent_number(phone_number)
                         return True
                     else:
-                        print(f"❌ Message #{index+1} returned unexpected state: {res_json.get('state')}")
+                        print(f"⚠️ الحالة غير متوقعة: {res_json.get('state')}")
                         return False
                 except ValueError:
-                    print(f"❌ Message #{index+1}: Failed to parse JSON. Response: {response.text}")
+                    print(f"❌ لم يتم تحليل الرد JSON. Response: {response.text}")
                     return False
-
-            # Other codes
             else:
-                print(f"❌ HTTP error for message #{index+1}: {response.status_code} - {response.text}")
+                print(f"❌ HTTP error: {response.status_code} - {response.text}")
                 return False
 
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-            print(f"⚠️ Network error on attempt {attempt}/{max_retries} for message #{index+1}: {e}")
+            print(f"⚠️ مشكلة بالشبكة (محاولة {attempt}): {e}")
             if attempt < max_retries:
-                print(f"🔁 Retrying in {delay} seconds...")
+                print(f"🔁 إعادة المحاولة بعد {delay} ثانية...")
                 time.sleep(delay)
             attempt += 1
 
-    print(f"❌ Failed to send message #{index+1} after {max_retries} attempts.")
+    print(f"❌ فشل إرسال الرسالة رقم {index+1} بعد {max_retries} محاولات.")
     return False
 
 # === Main loop to send one message to one number ===
-for i in range(min(len(phone_numbers), len(messages))):
-    phone_number = phone_numbers[i]
-    message_text = messages[i]
+if phone_numbers and messages:
+    for i in range(min(len(phone_numbers), len(messages))):
+        phone_number = phone_numbers[i]
+        message_text = messages[i]
+        send_single_message(phone_number, message_text, i)
 
-    send_single_message(phone_number, message_text, i)
+        if i < len(phone_numbers) - 1:
+            print("⏳ الانتظار 15 ثانية قبل الرسالة التالية...\n")
+            time.sleep(15)
 
-    if i < len(phone_numbers) - 1:
-        print("⏳ Waiting 30 seconds before next message...\n")
-        time.sleep(30)
+    # === Remove sent numbers from numbers.txt ===
+    remaining_numbers = [num for num in phone_numbers if num not in sent_numbers]
+    with open("numbers.txt", "w", encoding="utf-8") as f:
+        for num in remaining_numbers:
+            f.write(num + "\n")
 
-# === Remove sent numbers from numbers.txt ===
-remaining_numbers = [num for num in phone_numbers if num not in sent_numbers]
+    print("\n📁 تم إزالة الأرقام المرسلة من numbers.txt.")
+    print("📝 تم حفظ السجل في sent_log.txt.")
 
-with open("numbers.txt", "w", encoding="utf-8") as f:
-    for num in remaining_numbers:
-        f.write(num + "\n")
-
-print("\n📁 Sent numbers have been removed from numbers.txt.")
-print("📝 Log saved to sent_log.txt.")
+else:
+    print("⚠️ لا يوجد أرقام أو رسائل لإرسالها.")
